@@ -17,6 +17,8 @@ import {
   YapePlinConfig,
   YapePlinReceipt,
 } from '../types';
+import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
+import { dbService } from '../services/db';
 
 interface AppContextType {
   // Localization
@@ -26,7 +28,8 @@ interface AppContextType {
 
   // Authentication & Session
   isAuthenticated: boolean;
-  login: (email: string, password?: string) => { success: boolean; message?: string };
+  login: (email: string, password?: string) => Promise<{ success: boolean; message?: string }> | { success: boolean; message?: string };
+  signUp: (email: string, password: string, name: string, companyName?: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
 
   // Active User / Auth & Super Admin
@@ -36,6 +39,7 @@ interface AppContextType {
   usersList: UserTenant[];
   createNewUser: (data: {
     name: string;
+    username?: string;
     email: string;
     password?: string;
     companyName: string;
@@ -505,6 +509,7 @@ const INITIAL_CAMPAIGNS: Campaign[] = [
 const INITIAL_INVOICES: Invoice[] = [
   {
     id: 'inv_101',
+    userId: 'user_1',
     invoiceNumber: 'INV-2026-0891',
     date: '2026-09-15',
     dueDate: '2026-11-15',
@@ -516,6 +521,7 @@ const INITIAL_INVOICES: Invoice[] = [
   },
   {
     id: 'inv_102',
+    userId: 'user_2',
     invoiceNumber: 'INV-2026-0944',
     date: '2026-09-01',
     dueDate: '2026-10-01',
@@ -527,6 +533,7 @@ const INITIAL_INVOICES: Invoice[] = [
   },
   {
     id: 'inv_103',
+    userId: 'user_3',
     invoiceNumber: 'INV-2026-1002',
     date: '2026-10-11',
     dueDate: '2026-11-11',
@@ -613,24 +620,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [activeRunningCampaignId, setActiveRunningCampaignId] = useState<string | null>(null);
 
-  const [alerts, setAlerts] = useState<BillingAlert[]>([
-    {
-      id: 'alt_1',
-      type: 'quota_warning',
-      title: 'Plan Activo: 2 Meses (60 Días)',
-      message: 'Tu suscripción vence el 15 de Noviembre de 2026. Tienes acceso completo a transmisiones masivas.',
-      createdAt: 'Hace 2 horas',
-      read: false,
-    },
-    {
-      id: 'alt_2',
-      type: 'payment_due',
-      title: 'Próxima Renovación de Suscripción',
-      message: 'Puedes renovar tu plan por 1, 2 o 4 meses mediante Yape, Plin o Pasarela.',
-      createdAt: 'Ayer',
-      read: false,
-    },
-  ]);
+  const [alerts, setAlerts] = useState<BillingAlert[]>([]);
 
   const [pushEnabled, setPushEnabled] = useState<boolean>(false);
 
@@ -678,6 +668,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return user;
       })
     );
+  }, []);
+
+  // Restore Supabase Session on reload
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+
+    supabase.auth.getSession().then(async ({ data }: { data: any }) => {
+      const session = data?.session;
+      if (session?.user) {
+        setCurrentUserId(session.user.id);
+        setIsAuthenticated(true);
+        const profile = await dbService.getProfile(session.user.id);
+        if (profile) {
+          setUsersList((prev) => {
+            const exists = prev.some((u) => u.id === profile.id);
+            return exists ? prev.map((u) => (u.id === profile.id ? profile : u)) : [profile, ...prev];
+          });
+        }
+        const userContacts = await dbService.getContacts(session.user.id);
+        setContacts(userContacts);
+        const userMeta = await dbService.getMetaConfig(session.user.id);
+        if (userMeta) setMetaConfig(userMeta);
+        const userCampaigns = await dbService.getCampaigns(session.user.id);
+        setCampaigns(userCampaigns);
+      }
+    });
   }, []);
 
   // Sync state to LocalStorage
@@ -735,36 +751,144 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return (dict as any)[key] || (translations.es as any)[key] || key;
   };
 
-  // Auth Functions
-  const login = (email: string, password?: string): { success: boolean; message?: string } => {
-    const cleanEmail = email.trim().toLowerCase();
-    const user = usersList.find((u) => u.email.toLowerCase() === cleanEmail);
+  // Auth Functions (Conectado a Supabase + Fallback Local)
+  const login = async (loginIdentifier: string, password?: string): Promise<{ success: boolean; message?: string }> => {
+    const cleanInput = loginIdentifier.trim().toLowerCase();
 
-    if (!user) {
-      return {
-        success: false,
-        message: 'No se encontró ninguna cuenta registrada con este correo electrónico.',
-      };
+    // 1. Buscar en usersList si coincide por username o email para resolver el email real
+    const matchedUser = usersList.find(
+      (u) => (u.username && u.username.toLowerCase() === cleanInput) || u.email.toLowerCase() === cleanInput
+    );
+
+    const emailToUse = matchedUser ? matchedUser.email.toLowerCase() : (cleanInput.includes('@') ? cleanInput : `${cleanInput}@cliente.local`);
+
+    // 2. Intentar con Supabase Auth si está configurado
+    if (isSupabaseConfigured && supabase && password) {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: emailToUse,
+          password: password,
+        });
+
+        if (!error && data?.user) {
+          setCurrentUserId(data.user.id);
+          setIsAuthenticated(true);
+          localStorage.setItem('wb_auth_token', 'authenticated');
+          localStorage.setItem('wb_current_user_id', data.user.id);
+
+          const profile = await dbService.getProfile(data.user.id);
+          if (profile) {
+            setUsersList((prev) => {
+              const exists = prev.some((u) => u.id === profile.id);
+              return exists ? prev.map((u) => (u.id === profile.id ? profile : u)) : [profile, ...prev];
+            });
+          }
+
+          const userContacts = await dbService.getContacts(data.user.id);
+          setContacts(userContacts);
+
+          const userMeta = await dbService.getMetaConfig(data.user.id);
+          if (userMeta) setMetaConfig(userMeta);
+
+          const userCampaigns = await dbService.getCampaigns(data.user.id);
+          setCampaigns(userCampaigns);
+
+          return { success: true };
+        }
+      } catch (err: any) {
+        console.error('Error al conectar con Supabase Auth:', err);
+      }
     }
 
-    if (password && user.password && user.password !== password) {
-      return {
-        success: false,
-        message: 'Contraseña incorrecta. Por favor verifica tus credenciales.',
-      };
+    // 3. Fallback directo con el usuario creado en el panel
+    if (matchedUser) {
+      if (password && matchedUser.password && matchedUser.password !== password) {
+        return {
+          success: false,
+          message: 'Contraseña incorrecta. Por favor verifica tus credenciales.',
+        };
+      }
+
+      setCurrentUserId(matchedUser.id);
+      setIsAuthenticated(true);
+      localStorage.setItem('wb_auth_token', 'authenticated');
+      localStorage.setItem('wb_current_user_id', matchedUser.id);
+      return { success: true };
     }
 
-    setCurrentUserId(user.id);
-    setIsAuthenticated(true);
-    localStorage.setItem('wb_auth_token', 'authenticated');
-    localStorage.setItem('wb_current_user_id', user.id);
-
-    return { success: true };
+    return {
+      success: false,
+      message: 'No se encontró ninguna cuenta registrada con este usuario o correo.',
+    };
   };
 
-  const logout = () => {
+  const signUp = async (
+    email: string,
+    password: string,
+    name: string,
+    companyName: string = 'Mi Empresa'
+  ): Promise<{ success: boolean; message?: string }> => {
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data, error } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password,
+          options: {
+            data: {
+              name,
+              company_name: companyName,
+              role: 'business_owner',
+            },
+          },
+        });
+
+        if (error) return { success: false, message: error.message };
+
+        if (data.user) {
+          // Si no requiere confirmación de email inmediata, iniciar sesión
+          if (data.session) {
+            setCurrentUserId(data.user.id);
+            setIsAuthenticated(true);
+            localStorage.setItem('wb_auth_token', 'authenticated');
+            localStorage.setItem('wb_current_user_id', data.user.id);
+            setContacts([]);
+            setCampaigns([]);
+          }
+          return { success: true, message: 'Cuenta creada con éxito. Por favor inicia sesión.' };
+        }
+      } catch (err: any) {
+        return { success: false, message: err.message || 'Error al registrar usuario en Supabase' };
+      }
+    }
+
+    // Fallback Local
+    createNewUser({
+      name,
+      email: cleanEmail,
+      password,
+      companyName,
+      phone: '',
+      planId: '1_month',
+      durationMonths: 1,
+      status: 'active',
+    });
+
+    return { success: true, message: 'Usuario creado exitosamente.' };
+  };
+
+  const logout = async () => {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.auth.signOut();
+      } catch (e) {
+        console.error(e);
+      }
+    }
     setIsAuthenticated(false);
     localStorage.removeItem('wb_auth_token');
+    localStorage.removeItem('wb_current_user_id');
   };
 
   const switchRole = (role: UserRole) => {
@@ -780,6 +904,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Admin User controls: Time-based user provisioning
   const createNewUser = (data: {
     name: string;
+    username?: string;
     email: string;
     password?: string;
     companyName: string;
@@ -796,9 +921,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const targetPlan = plans.find((p) => p.id === data.planId) || plans[0];
 
+    const generatedUsername = data.username?.trim().toLowerCase() || data.email.split('@')[0].toLowerCase();
+
     const newUser: UserTenant = {
       id: `user_${Date.now()}`,
       name: data.name,
+      username: generatedUsername,
       email: data.email,
       password: data.password || 'user123',
       companyName: data.companyName,
@@ -818,9 +946,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setUsersList((prev) => [newUser, ...prev]);
 
-    // Create invoice
+    // Create invoice for this specific user
     const newInvoice: Invoice = {
       id: `inv_${Date.now()}`,
+      userId: newUser.id,
       invoiceNumber: `INV-2026-${Math.floor(1000 + Math.random() * 9000)}`,
       date: startDate,
       dueDate,
@@ -987,7 +1116,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Meta API controls
   const updateMetaConfig = (cfg: Partial<MetaApiConfig>) => {
-    setMetaConfig((prev) => ({ ...prev, ...cfg }));
+    setMetaConfig((prev) => {
+      const updated = { ...prev, ...cfg };
+      if (isSupabaseConfigured && currentUser?.id) {
+        dbService.saveMetaConfig(currentUser.id, updated).catch(console.error);
+      }
+      return updated;
+    });
   };
 
   const testMetaConnection = async () => {
@@ -1011,7 +1146,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
-  // Contacts
+  // Contacts (Persistidos y aislados en Supabase)
   const addContact = (contactData: Omit<Contact, 'id' | 'createdAt' | 'metrics'>) => {
     const newContact: Contact = {
       ...contactData,
@@ -1020,6 +1155,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       metrics: { messagesSent: 0, messagesRead: 0, messagesReplied: 0 },
     };
     setContacts((prev) => [newContact, ...prev]);
+
+    if (isSupabaseConfigured && currentUser?.id) {
+      dbService.insertContacts(currentUser.id, [contactData]).catch(console.error);
+    }
   };
 
   const importContacts = (newItems: Omit<Contact, 'id' | 'createdAt' | 'metrics'>[]) => {
@@ -1030,10 +1169,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       metrics: { messagesSent: 0, messagesRead: 0, messagesReplied: 0 },
     }));
     setContacts((prev) => [...formatted, ...prev]);
+
+    if (isSupabaseConfigured && currentUser?.id) {
+      dbService.insertContacts(currentUser.id, newItems).catch(console.error);
+    }
   };
 
   const deleteContact = (id: string) => {
     setContacts((prev) => prev.filter((c) => c.id !== id));
+    if (isSupabaseConfigured && currentUser?.id) {
+      dbService.deleteContact(currentUser.id, id).catch(console.error);
+    }
   };
 
   const clearAllContacts = () => {
@@ -1041,6 +1187,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const toggleOptOut = (id: string) => {
+    const target = contacts.find((c) => c.id === id);
+    if (target && isSupabaseConfigured && currentUser?.id) {
+      dbService.toggleContactOptOut(currentUser.id, id, target.status).catch(console.error);
+    }
+
     setContacts((prev) =>
       prev.map((c) =>
         c.id === id
@@ -1099,6 +1250,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       logs: [],
     };
     setCampaigns((prev) => [newCamp, ...prev]);
+
+    if (isSupabaseConfigured && currentUser?.id) {
+      dbService.saveCampaign(currentUser.id, data).catch(console.error);
+    }
+
     return newCamp;
   };
 
@@ -1285,6 +1441,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         t,
         isAuthenticated,
         login,
+        signUp,
         logout,
         currentUser,
         isSuperAdmin,

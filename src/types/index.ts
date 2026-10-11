@@ -9,6 +9,7 @@ export type PlanDuration = '1_month' | '2_months' | '4_months';
 export interface UserTenant {
   id: string;
   name: string;
+  username?: string;
   email: string;
   password?: string;
   companyName: string;
@@ -185,6 +186,7 @@ export interface SubscriptionPlan {
 
 export interface Invoice {
   id: string;
+  userId?: string;
   invoiceNumber: string;
   date: string;
   dueDate: string;

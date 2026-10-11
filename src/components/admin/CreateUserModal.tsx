@@ -26,6 +26,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   const { createNewUser, plans } = useApp();
 
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('user123');
@@ -39,11 +40,15 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !email.trim() || !companyName.trim()) return;
+    if (!name.trim() || !companyName.trim()) return;
+
+    const finalUsername = (username.trim() || name.trim().toLowerCase().replace(/\s+/g, '')).toLowerCase();
+    const finalEmail = email.trim() ? email.trim().toLowerCase() : `${finalUsername}@cliente.local`;
 
     createNewUser({
       name: name.trim(),
-      email: email.trim().toLowerCase(),
+      username: finalUsername,
+      email: finalEmail,
       password: password.trim() || 'user123',
       companyName: companyName.trim(),
       phone: phone.trim(),
@@ -118,21 +123,21 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-slate-300 font-semibold mb-1">
-                Correo Electrónico (Login) *
+                Usuario de Acceso (Login) *
               </label>
               <input
-                type="email"
+                type="text"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="cliente@empresa.com"
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="ej. zapateria_norte"
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono focus:outline-none focus:border-emerald-500"
               />
             </div>
 
             <div>
               <label className="block text-slate-300 font-semibold mb-1">
-                Contraseña de Acceso *
+                Contraseña Asignada *
               </label>
               <input
                 type="text"
@@ -143,6 +148,19 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono focus:outline-none focus:border-emerald-500"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-slate-300 font-semibold mb-1">
+              Correo Electrónico (Opcional)
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="cliente@empresa.com (si no tiene, se autogenera)"
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+            />
           </div>
 
           <div>

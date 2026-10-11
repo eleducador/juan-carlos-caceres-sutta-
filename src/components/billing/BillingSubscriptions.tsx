@@ -31,6 +31,9 @@ export const BillingSubscriptions: React.FC = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showYapePlinModal, setShowYapePlinModal] = useState(false);
 
+  // Cada usuario ve estrictamente sus propias facturas
+  const userInvoices = invoices.filter((inv) => inv.userId === currentUser.id);
+
   const quotaPercent = Math.min(
     100,
     Math.round((currentUser.quotaUsed / (currentUser.quotaLimit || 1)) * 100)
@@ -233,7 +236,14 @@ export const BillingSubscriptions: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
-              {invoices.map((inv) => (
+              {userInvoices.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-6 text-center text-slate-500 font-sans">
+                    No tienes facturas pendientes ni historial de pagos registrado.
+                  </td>
+                </tr>
+              ) : (
+                userInvoices.map((inv) => (
                 <tr key={inv.id} className="hover:bg-slate-850/50 transition-colors">
                   <td className="py-3 px-3 font-semibold text-white">
                     {inv.invoiceNumber}
@@ -288,7 +298,7 @@ export const BillingSubscriptions: React.FC = () => {
                     )}
                   </td>
                 </tr>
-              ))}
+              )))}
             </tbody>
           </table>
         </div>

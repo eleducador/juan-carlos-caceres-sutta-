@@ -25,9 +25,9 @@ export const AnalyticsReports: React.FC = () => {
   const totalReplied = campaigns.reduce((acc, c) => acc + c.stats.replied, 0);
   const totalFailed = campaigns.reduce((acc, c) => acc + c.stats.failed, 0);
 
-  const deliveryRate = totalSent > 0 ? ((totalDelivered / totalSent) * 100).toFixed(1) : '98.5';
-  const readRate = totalDelivered > 0 ? ((totalRead / totalDelivered) * 100).toFixed(1) : '82.4';
-  const replyRate = totalRead > 0 ? ((totalReplied / totalRead) * 100).toFixed(1) : '34.8';
+  const deliveryRate = totalSent > 0 ? ((totalDelivered / totalSent) * 100).toFixed(1) : '0.0';
+  const readRate = totalDelivered > 0 ? ((totalRead / totalDelivered) * 100).toFixed(1) : '0.0';
+  const replyRate = totalRead > 0 ? ((totalReplied / totalRead) * 100).toFixed(1) : '0.0';
 
   // Meta Cloud API cost calculation estimate in Soles (~S/ 0.18 per marketing conv in Peru/LATAM)
   const estimatedCostPEN = (totalSent * 0.18).toFixed(2);

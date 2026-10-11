@@ -222,8 +222,11 @@ export const AdminUserControl: React.FC = () => {
                           </div>
                         </td>
                         <td className="py-3 px-3 font-mono text-[11px] text-slate-300">
-                          <div>{user.email}</div>
-                          <div className="text-[10px] text-slate-500">Clave: {user.password || 'user123'}</div>
+                          <div className="font-bold text-emerald-400">👤 {user.username || user.email.split('@')[0]}</div>
+                          <div className="text-[10px] text-slate-400">🔑 Clave: <span className="text-white font-bold">{user.password || 'user123'}</span></div>
+                          {user.email && !user.email.endsWith('@cliente.local') && (
+                            <div className="text-[10px] text-slate-500 font-sans">{user.email}</div>
+                          )}
                         </td>
                         <td className="py-3 px-3">
                           {user.planId === '1_month' ? (
@@ -279,16 +282,35 @@ export const AdminUserControl: React.FC = () => {
                             <span className="text-slate-400">Al día (S/ 0.00)</span>
                           )}
                         </td>
+                        {/* CONTÓMETRO DE SUSCRIPCIÓN */}
                         <td className="py-3 px-3 text-[11px]">
-                          <div className="text-white font-mono">{user.dueDate}</div>
+                          <div className="text-white font-mono text-xs">{user.dueDate}</div>
                           {(() => {
                             const days = getDaysRemaining(user.dueDate);
-                            if (days > 5) {
-                              return <span className="text-[10px] text-emerald-400 font-sans">Quedan {days} días</span>;
+                            if (days > 7) {
+                              return (
+                                <div className="inline-flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                                  <span>⏳</span> Quedan {days} días
+                                </div>
+                              );
                             } else if (days > 0) {
-                              return <span className="text-[10px] text-amber-400 font-sans font-bold">Por vencer ({days}d)</span>;
+                              return (
+                                <div className="inline-flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold animate-pulse">
+                                  <span>⚠️</span> Vence en {days} días
+                                </div>
+                              );
+                            } else if (days === 0) {
+                              return (
+                                <div className="inline-flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-full bg-red-500/25 text-red-300 border border-red-500/50 text-[10px] font-extrabold">
+                                  <span>🚨</span> ¡VENCE HOY!
+                                </div>
+                              );
                             } else {
-                              return <span className="text-[10px] text-red-400 font-sans font-bold">Vencido ({Math.abs(days)}d atrás)</span>;
+                              return (
+                                <div className="inline-flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-full bg-red-950 text-red-400 border border-red-500/30 text-[10px] font-bold">
+                                  <span>⛔</span> Vencido hace {Math.abs(days)} días
+                                </div>
+                              );
                             }
                           })()}
                         </td>

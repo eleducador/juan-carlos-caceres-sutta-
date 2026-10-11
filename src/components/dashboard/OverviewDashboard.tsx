@@ -42,9 +42,9 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
   const totalRead = campaigns.reduce((acc, c) => acc + c.stats.read, 0);
   const totalReplied = campaigns.reduce((acc, c) => acc + c.stats.replied, 0);
 
-  const deliveryRate = totalSent > 0 ? ((totalDelivered / totalSent) * 100).toFixed(1) : '98.5';
-  const readRate = totalDelivered > 0 ? ((totalRead / totalDelivered) * 100).toFixed(1) : '82.4';
-  const replyRate = totalRead > 0 ? ((totalReplied / totalRead) * 100).toFixed(1) : '34.8';
+  const deliveryRate = totalSent > 0 ? ((totalDelivered / totalSent) * 100).toFixed(1) : '0.0';
+  const readRate = totalDelivered > 0 ? ((totalRead / totalDelivered) * 100).toFixed(1) : '0.0';
+  const replyRate = totalRead > 0 ? ((totalReplied / totalRead) * 100).toFixed(1) : '0.0';
 
   const handleDownloadPdf = () => {
     PdfReportService.generateExecutiveReport(campaigns, contacts, currentUser.companyName);

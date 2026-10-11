@@ -88,6 +88,40 @@ export const dbService = {
     return !error;
   },
 
+  async updateProfile(userId: string, partial: Partial<UserTenant>): Promise<boolean> {
+    if (!isSupabaseConfigured || !supabase) return false;
+    const updatePayload: any = { updated_at: new Date().toISOString() };
+    if (partial.name !== undefined) updatePayload.name = partial.name;
+    if (partial.username !== undefined) updatePayload.username = partial.username;
+    if (partial.email !== undefined) updatePayload.email = partial.email;
+    if (partial.password !== undefined) updatePayload.password = partial.password;
+    if (partial.companyName !== undefined) updatePayload.company_name = partial.companyName;
+    if (partial.phone !== undefined) updatePayload.phone = partial.phone;
+    if (partial.role !== undefined) updatePayload.role = partial.role;
+    if (partial.status !== undefined) updatePayload.status = partial.status;
+    if (partial.planId !== undefined) updatePayload.plan_id = partial.planId;
+    if (partial.durationMonths !== undefined) updatePayload.duration_months = partial.durationMonths;
+    if (partial.dueDate !== undefined) updatePayload.due_date = partial.dueDate;
+    if (partial.quotaLimit !== undefined) updatePayload.quota_limit = partial.quotaLimit;
+    if (partial.quotaUsed !== undefined) updatePayload.quota_used = partial.quotaUsed;
+    if (partial.unpaidBalance !== undefined) updatePayload.unpaid_balance = partial.unpaidBalance;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update(updatePayload)
+      .eq('id', userId);
+    return !error;
+  },
+
+  async deleteProfile(userId: string): Promise<boolean> {
+    if (!isSupabaseConfigured || !supabase) return false;
+    const { error } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', userId);
+    return !error;
+  },
+
   // Meta Config
   async getMetaConfig(userId: string): Promise<MetaApiConfig | null> {
     if (!isSupabaseConfigured || !supabase) return null;

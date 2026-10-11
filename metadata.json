@@ -1,0 +1,8 @@
+{
+  "name": "WhatsBroadcast Pro - Mensajería Masiva Oficial Meta",
+  "description": "Plataforma empresarial de envíos masivos personalizados por WhatsApp con API Oficial de Meta Cloud, gestión de audiencias y plantillas, analíticas en tiempo real, control de usuarios, facturación y reportes PDF.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -733,9 +733,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const cleanInput = loginIdentifier.trim().toLowerCase();
 
     // 1. Buscar en usersList si coincide por username o email para resolver el email real
-    const matchedUser = usersList.find(
+    let matchedUser = usersList.find(
       (u) => (u.username && u.username.toLowerCase() === cleanInput) || u.email.toLowerCase() === cleanInput
     );
+
+    // Si aún no está en memoria local, buscar en tiempo real directamente en Supabase
+    if (!matchedUser && isSupabaseConfigured && supabase) {
+      try {
+        const { data: cloudUsers } = await supabase
+          .from('profiles')
+          .select('*')
+          .or(`username.ilike.${cleanInput},email.ilike.${cleanInput}`);
+        if (cloudUsers && cloudUsers.length > 0) {
+          const d = cloudUsers[0];
+          matchedUser = {
+            id: d.id,
+            name: d.name,
+            username: d.username || d.email.split('@')[0],
+            email: d.email,
+            password: d.password || 'user123',
+            companyName: d.company_name,
+            phone: d.phone,
+            role: d.role,
+            status: d.status,
+            planId: d.plan_id,
+            durationMonths: d.duration_months,
+            startDate: d.start_date,
+            dueDate: d.due_date,
+            quotaUsed: d.quota_used,
+            quotaLimit: d.quota_limit,
+            unpaidBalance: Number(d.unpaid_balance || 0),
+            currency: 'PEN',
+            createdAt: d.created_at,
+          };
+          setUsersList((prev) => [matchedUser!, ...prev.filter((u) => u.id !== matchedUser!.id)]);
+        }
+      } catch (err) {
+        console.error('Error buscando usuario en Supabase:', err);
+      }
+    }
 
     const emailToUse = matchedUser ? matchedUser.email.toLowerCase() : (cleanInput.includes('@') ? cleanInput : `${cleanInput}@cliente.local`);
 
@@ -898,10 +934,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const targetPlan = plans.find((p) => p.id === data.planId) || plans[0];
 
-    const generatedUsername = data.username?.trim().toLowerCase() || data.email.split('@')[0].toLowerCase();
+    const newUserId = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          const v = c === 'x' ? r : (r & 0x3) | 0x8;
+          return v.toString(16);
+        });
 
     const newUser: UserTenant = {
-      id: `user_${Date.now()}`,
+      id: newUserId,
       name: data.name,
       username: generatedUsername,
       email: data.email,

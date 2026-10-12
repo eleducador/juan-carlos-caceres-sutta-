@@ -17,7 +17,8 @@ import {
   FileText,
   AlertCircle,
   FileDown,
-  AlertTriangle
+  AlertTriangle,
+  MessageCircle
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useApp } from '../../context/AppContext';
@@ -524,24 +525,33 @@ export const ContactManagement: React.FC = () => {
                         </span>
                       )}
                     </td>
-                    <td className="py-3 px-3 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => toggleOptOut(contact.id)}
-                          className="p-1 rounded text-slate-400 hover:text-amber-400 transition-colors"
-                          title={contact.status === 'active' ? 'Marcar Opt-out' : 'Reactivar contacto'}
-                        >
-                          <Ban className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => deleteContact(contact.id)}
-                          className="p-1 rounded text-slate-400 hover:text-red-400 transition-colors"
-                          title="Eliminar contacto"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
+                      <td className="py-3 px-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <a
+                            href={`https://api.whatsapp.com/send?phone=${contact.phone.replace(/[^0-9]/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 rounded text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors"
+                            title="Abrir chat en WhatsApp"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                          </a>
+                          <button
+                            onClick={() => toggleOptOut(contact.id)}
+                            className="p-1 rounded text-slate-400 hover:text-amber-400 transition-colors"
+                            title={contact.status === 'active' ? 'Marcar Opt-out' : 'Reactivar contacto'}
+                          >
+                            <Ban className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => deleteContact(contact.id)}
+                            className="p-1 rounded text-slate-400 hover:text-red-400 transition-colors"
+                            title="Eliminar contacto"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
                   </tr>
                 );
               })}

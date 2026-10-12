@@ -14,7 +14,9 @@ export const dbService = {
     return {
       id: data.id,
       name: data.name,
+      username: data.username || data.email.split('@')[0],
       email: data.email,
+      password: data.password || 'user123',
       companyName: data.company_name,
       phone: data.phone,
       role: data.role,
@@ -29,6 +31,95 @@ export const dbService = {
       currency: 'PEN',
       createdAt: data.created_at,
     };
+  },
+
+  async getAllProfiles(): Promise<UserTenant[]> {
+    if (!isSupabaseConfigured || !supabase) return [];
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error || !data) return [];
+    return data.map((d: any) => ({
+      id: d.id,
+      name: d.name,
+      username: d.username || d.email.split('@')[0],
+      email: d.email,
+      password: d.password || 'user123',
+      companyName: d.company_name,
+      phone: d.phone,
+      role: d.role,
+      status: d.status,
+      planId: d.plan_id,
+      durationMonths: d.duration_months,
+      startDate: d.start_date,
+      dueDate: d.due_date,
+      quotaUsed: d.quota_used,
+      quotaLimit: d.quota_limit,
+      unpaidBalance: Number(d.unpaid_balance || 0),
+      currency: 'PEN',
+      createdAt: d.created_at,
+    }));
+  },
+
+  async saveProfile(user: UserTenant): Promise<boolean> {
+    if (!isSupabaseConfigured || !supabase) return false;
+    const { error } = await supabase
+      .from('profiles')
+      .upsert({
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        password: user.password,
+        company_name: user.companyName,
+        phone: user.phone,
+        role: user.role,
+        status: user.status,
+        plan_id: user.planId,
+        duration_months: user.durationMonths,
+        start_date: user.startDate,
+        due_date: user.dueDate,
+        quota_used: user.quotaUsed,
+        quota_limit: user.quotaLimit,
+        unpaid_balance: user.unpaidBalance,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+    return !error;
+  },
+
+  async updateProfile(userId: string, partial: Partial<UserTenant>): Promise<boolean> {
+    if (!isSupabaseConfigured || !supabase) return false;
+    const updatePayload: any = { updated_at: new Date().toISOString() };
+    if (partial.name !== undefined) updatePayload.name = partial.name;
+    if (partial.username !== undefined) updatePayload.username = partial.username;
+    if (partial.email !== undefined) updatePayload.email = partial.email;
+    if (partial.password !== undefined) updatePayload.password = partial.password;
+    if (partial.companyName !== undefined) updatePayload.company_name = partial.companyName;
+    if (partial.phone !== undefined) updatePayload.phone = partial.phone;
+    if (partial.role !== undefined) updatePayload.role = partial.role;
+    if (partial.status !== undefined) updatePayload.status = partial.status;
+    if (partial.planId !== undefined) updatePayload.plan_id = partial.planId;
+    if (partial.durationMonths !== undefined) updatePayload.duration_months = partial.durationMonths;
+    if (partial.dueDate !== undefined) updatePayload.due_date = partial.dueDate;
+    if (partial.quotaLimit !== undefined) updatePayload.quota_limit = partial.quotaLimit;
+    if (partial.quotaUsed !== undefined) updatePayload.quota_used = partial.quotaUsed;
+    if (partial.unpaidBalance !== undefined) updatePayload.unpaid_balance = partial.unpaidBalance;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update(updatePayload)
+      .eq('id', userId);
+    return !error;
+  },
+
+  async deleteProfile(userId: string): Promise<boolean> {
+    if (!isSupabaseConfigured || !supabase) return false;
+    const { error } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', userId);
+    return !error;
   },
 
   // Meta Config

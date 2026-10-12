@@ -56,6 +56,7 @@ interface AppContextType {
   extendGracePeriod: (userId: string) => void;
   extendUserDuration: (userId: string, monthsToAdd: 1 | 2 | 4) => void;
   updateUserQuota: (userId: string, newLimit: number) => void;
+  updateProfile: (updates: Partial<UserTenant>) => Promise<boolean>;
   getDaysRemaining: (dueDate: string) => number;
 
   // Yape / Plin Config & Management
@@ -162,8 +163,28 @@ const INITIAL_PLANS: SubscriptionPlan[] = [
   },
 ];
 
-// Initial Mock Tenants with Time Durations and Due Dates
+// Initial Tenants with Real Super Admin
 const INITIAL_USERS: UserTenant[] = [
+  {
+    id: '13ab4929-7d35-4fb9-9e41-d0d365064751',
+    name: 'Juan Carlos Caceres Sutta',
+    username: 'jcsutta2',
+    email: 'jcsutta2@gmail.com',
+    password: 'user123',
+    companyName: 'WhatsBroadcast Pro',
+    phone: '+51 984 512 890',
+    role: 'super_admin',
+    status: 'active',
+    planId: '4_months',
+    durationMonths: 4,
+    quotaUsed: 0,
+    quotaLimit: 100000,
+    unpaidBalance: 0,
+    startDate: '2026-01-01',
+    dueDate: '2027-01-01',
+    currency: 'PEN',
+    createdAt: '2026-01-01',
+  },
   {
     id: 'user_1',
     name: 'Carlos Mendoza',
@@ -179,66 +200,9 @@ const INITIAL_USERS: UserTenant[] = [
     quotaLimit: 15000,
     unpaidBalance: 0,
     startDate: '2026-09-15',
-    dueDate: '2026-11-15', // Active with ~35 days remaining
+    dueDate: '2026-11-15',
     currency: 'PEN',
     createdAt: '2026-01-15',
-  },
-  {
-    id: 'user_2',
-    name: 'Lucía Fernández',
-    email: 'lucia@clinicaesperanza.com',
-    password: 'user123',
-    companyName: 'Clínica Médica Esperanza',
-    phone: '+51 987 654 321',
-    role: 'business_owner',
-    status: 'suspended_unpaid', // Expired and blocked for unpaid renewal
-    planId: '1_month',
-    durationMonths: 1,
-    quotaUsed: 1050,
-    quotaLimit: 5000,
-    unpaidBalance: 99.00,
-    startDate: '2026-09-01',
-    dueDate: '2026-10-01', // Expired!
-    currency: 'PEN',
-    createdAt: '2026-02-10',
-  },
-  {
-    id: 'user_3',
-    name: 'Roberto Gómez',
-    email: 'roberto@inmobiliariaurban.com',
-    password: 'user123',
-    companyName: 'Inmobiliaria Urban Tower',
-    phone: '+57 310 554 2211',
-    role: 'business_owner',
-    status: 'overdue_grace',
-    planId: '4_months',
-    durationMonths: 4,
-    quotaUsed: 7890,
-    quotaLimit: 50000,
-    unpaidBalance: 299.00,
-    startDate: '2026-06-14',
-    dueDate: '2026-10-14',
-    currency: 'PEN',
-    createdAt: '2026-03-01',
-  },
-  {
-    id: 'user_4',
-    name: 'Admin Global Meta',
-    email: 'superadmin@whatsbroadcast.io',
-    password: 'admin123',
-    companyName: 'WhatsBroadcast Core Team',
-    phone: '+51 984 512 890',
-    role: 'super_admin',
-    status: 'active',
-    planId: '4_months',
-    durationMonths: 4,
-    quotaUsed: 42100,
-    quotaLimit: 100000,
-    unpaidBalance: 0,
-    startDate: '2026-01-01',
-    dueDate: '2027-01-01',
-    currency: 'PEN',
-    createdAt: '2025-10-01',
   },
 ];
 
@@ -562,7 +526,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [currentUserId, setCurrentUserId] = useState<string>(() => {
     const savedUserId = localStorage.getItem('wb_current_user_id');
-    return savedUserId || 'user_1';
+    return savedUserId || '13ab4929-7d35-4fb9-9e41-d0d365064751';
   });
 
   const [yapePlinConfig, setYapePlinConfig] = useState<YapePlinConfig>(() => {
@@ -674,6 +638,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
 
+    // 1. Cargar lista global de usuarios y clientes desde Supabase en la nube
+    dbService.getAllProfiles().then((cloudUsers) => {
+      if (cloudUsers && cloudUsers.length > 0) {
+        setUsersList((prev) => {
+          const map = new Map<string, UserTenant>();
+          prev.forEach((u) => map.set(u.id, u));
+          cloudUsers.forEach((cu) => map.set(cu.id, cu));
+          return Array.from(map.values());
+        });
+      }
+    }).catch(console.error);
+
+    // 2. Restaurar sesión activa
     supabase.auth.getSession().then(async ({ data }: { data: any }) => {
       const session = data?.session;
       if (session?.user) {
@@ -756,9 +733,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const cleanInput = loginIdentifier.trim().toLowerCase();
 
     // 1. Buscar en usersList si coincide por username o email para resolver el email real
-    const matchedUser = usersList.find(
+    let matchedUser = usersList.find(
       (u) => (u.username && u.username.toLowerCase() === cleanInput) || u.email.toLowerCase() === cleanInput
     );
+
+    // Si aún no está en memoria local, buscar en tiempo real directamente en Supabase
+    if (!matchedUser && isSupabaseConfigured && supabase) {
+      try {
+        const { data: cloudUsers } = await supabase
+          .from('profiles')
+          .select('*')
+          .or(`username.ilike.${cleanInput},email.ilike.${cleanInput}`);
+        if (cloudUsers && cloudUsers.length > 0) {
+          const d = cloudUsers[0];
+          matchedUser = {
+            id: d.id,
+            name: d.name,
+            username: d.username || d.email.split('@')[0],
+            email: d.email,
+            password: d.password || 'user123',
+            companyName: d.company_name,
+            phone: d.phone,
+            role: d.role,
+            status: d.status,
+            planId: d.plan_id,
+            durationMonths: d.duration_months,
+            startDate: d.start_date,
+            dueDate: d.due_date,
+            quotaUsed: d.quota_used,
+            quotaLimit: d.quota_limit,
+            unpaidBalance: Number(d.unpaid_balance || 0),
+            currency: 'PEN',
+            createdAt: d.created_at,
+          };
+          setUsersList((prev) => [matchedUser!, ...prev.filter((u) => u.id !== matchedUser!.id)]);
+        }
+      } catch (err) {
+        console.error('Error buscando usuario en Supabase:', err);
+      }
+    }
 
     const emailToUse = matchedUser ? matchedUser.email.toLowerCase() : (cleanInput.includes('@') ? cleanInput : `${cleanInput}@cliente.local`);
 
@@ -893,8 +906,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const switchRole = (role: UserRole) => {
     if (role === 'super_admin') {
-      setCurrentUserId('user_4');
-      localStorage.setItem('wb_current_user_id', 'user_4');
+      setCurrentUserId('13ab4929-7d35-4fb9-9e41-d0d365064751');
+      localStorage.setItem('wb_current_user_id', '13ab4929-7d35-4fb9-9e41-d0d365064751');
     } else {
       setCurrentUserId('user_1');
       localStorage.setItem('wb_current_user_id', 'user_1');
@@ -921,10 +934,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const targetPlan = plans.find((p) => p.id === data.planId) || plans[0];
 
-    const generatedUsername = data.username?.trim().toLowerCase() || data.email.split('@')[0].toLowerCase();
+    const newUserId = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          const v = c === 'x' ? r : (r & 0x3) | 0x8;
+          return v.toString(16);
+        });
 
     const newUser: UserTenant = {
-      id: `user_${Date.now()}`,
+      id: newUserId,
       name: data.name,
       username: generatedUsername,
       email: data.email,
@@ -946,6 +965,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setUsersList((prev) => [newUser, ...prev]);
 
+    // Persistir perfil directamente en Supabase en la nube para acceso global
+    if (isSupabaseConfigured && supabase) {
+      dbService.saveProfile(newUser).catch(console.error);
+    }
+
     // Create invoice for this specific user
     const newInvoice: Invoice = {
       id: `inv_${Date.now()}`,
@@ -964,6 +988,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteUser = (userId: string) => {
     setUsersList((prev) => prev.filter((u) => u.id !== userId));
+    if (isSupabaseConfigured && supabase) {
+      dbService.deleteProfile(userId).catch(console.error);
+    }
   };
 
   const blockUserByAdmin = (userId: string, reason?: string) => {
@@ -971,10 +998,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       prev.map((u) => {
         if (u.id === userId) {
           const plan = plans.find((p) => p.id === u.planId) || plans[0];
+          const newBal = u.unpaidBalance > 0 ? u.unpaidBalance : plan.pricePEN;
+          if (isSupabaseConfigured && supabase) {
+            dbService.updateProfile(userId, { status: 'suspended_unpaid', unpaidBalance: newBal }).catch(console.error);
+          }
           return {
             ...u,
             status: 'suspended_unpaid',
-            unpaidBalance: u.unpaidBalance > 0 ? u.unpaidBalance : plan.pricePEN,
+            unpaidBalance: newBal,
           };
         }
         return u;
@@ -987,11 +1018,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       prev.map((u) => {
         if (u.id === userId) {
           const durationDays = u.durationMonths === 1 ? 30 : u.durationMonths === 2 ? 60 : 120;
+          const newDueDate = new Date(Date.now() + durationDays * 86400000).toISOString().slice(0, 10);
+          if (isSupabaseConfigured && supabase) {
+            dbService.updateProfile(userId, { status: 'active', unpaidBalance: 0, dueDate: newDueDate }).catch(console.error);
+          }
           return {
             ...u,
             status: 'active',
             unpaidBalance: 0,
-            dueDate: new Date(Date.now() + durationDays * 86400000).toISOString().slice(0, 10),
+            dueDate: newDueDate,
           };
         }
         return u;
@@ -1004,6 +1039,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       prev.map((u) => {
         if (u.id === userId) {
           const newDue = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+          if (isSupabaseConfigured && supabase) {
+            dbService.updateProfile(userId, { status: 'overdue_grace', dueDate: newDue }).catch(console.error);
+          }
           return { ...u, status: 'overdue_grace', dueDate: newDue };
         }
         return u;
@@ -1021,6 +1059,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const newDueDate = new Date(baseTime + daysToAdd * 86400000).toISOString().slice(0, 10);
           const newPlanId: PlanDuration = monthsToAdd === 1 ? '1_month' : monthsToAdd === 2 ? '2_months' : '4_months';
 
+          if (isSupabaseConfigured && supabase) {
+            dbService.updateProfile(userId, {
+              status: 'active',
+              unpaidBalance: 0,
+              durationMonths: monthsToAdd,
+              planId: newPlanId,
+              dueDate: newDueDate,
+            }).catch(console.error);
+          }
+
           return {
             ...u,
             status: 'active',
@@ -1037,8 +1085,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateUserQuota = (userId: string, newLimit: number) => {
     setUsersList((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, quotaLimit: newLimit } : u))
+      prev.map((u) => {
+        if (u.id === userId) {
+          if (isSupabaseConfigured && supabase) {
+            dbService.updateProfile(userId, { quotaLimit: newLimit }).catch(console.error);
+          }
+          return { ...u, quotaLimit: newLimit };
+        }
+        return u;
+      })
     );
+  };
+
+  const updateProfile = async (updates: Partial<UserTenant>): Promise<boolean> => {
+    setUsersList((prev) =>
+      prev.map((u) => (u.id === currentUserId ? { ...u, ...updates } : u))
+    );
+    if (isSupabaseConfigured && supabase && currentUserId) {
+      return await dbService.updateProfile(currentUserId, updates);
+    }
+    return true;
   };
 
   // Yape / Plin Config & Management
@@ -1454,6 +1520,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         extendGracePeriod,
         extendUserDuration,
         updateUserQuota,
+        updateProfile,
         getDaysRemaining,
         yapePlinConfig,
         updateYapePlinConfig,

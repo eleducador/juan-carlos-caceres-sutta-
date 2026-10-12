@@ -19,6 +19,7 @@ import {
 } from '../types';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import { dbService } from '../services/db';
+import { MetaApiService } from '../services/metaApiService';
 
 interface AppContextType {
   // Localization
@@ -1206,24 +1207,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const testMetaConnection = async () => {
-    await new Promise((r) => setTimeout(r, 800));
-    const isSuccess = metaConfig.isSandboxMode || (metaConfig.phoneNumberId && metaConfig.accessToken.length > 10);
-    if (isSuccess) {
+    const result = await MetaApiService.testConnection(metaConfig);
+    if (result.success) {
       setMetaConfig((prev) => ({
         ...prev,
         isConnected: true,
         lastTestedAt: new Date().toISOString(),
       }));
-      return {
-        success: true,
-        message: 'Conexión verificada con la API Oficial de Meta WhatsApp Cloud.',
-        details: { tier: metaConfig.rateTier, quality: 'HIGH (GREEN)' },
-      };
+    } else {
+      setMetaConfig((prev) => ({
+        ...prev,
+        isConnected: false,
+      }));
     }
-    return {
-      success: false,
-      message: 'Token o Phone Number ID inválido en Meta Graph API.',
-    };
+    return result;
   };
 
   // Contacts (Persistidos y aislados en Supabase)
@@ -1353,6 +1350,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const targetCampaign = campaigns.find((c) => c.id === campaignId);
     if (!targetCampaign) return;
 
+    const targetTemplate = templates.find(
+      (t) => t.id === targetCampaign.templateId || t.name === targetCampaign.templateName
+    ) || templates[0];
+
     const eligibleContacts = contacts.filter((c) => c.status !== 'opted_out');
     const totalToProcess = Math.min(eligibleContacts.length, targetCampaign.stats.total || eligibleContacts.length);
 
@@ -1364,16 +1365,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     for (let i = 0; i < totalToProcess; i++) {
       const contact = eligibleContacts[i % eligibleContacts.length];
-      await new Promise((r) => setTimeout(r, 250));
 
-      const isFail = Math.random() < 0.03;
-      sentCount++;
+      // Enviar a través de MetaApiService (oficial si hay credenciales o simulación si es Sandbox)
+      const sendResult = await MetaApiService.sendSingleMessage(
+        metaConfig,
+        targetTemplate,
+        targetCampaign.variableMapping || {},
+        contact
+      );
+
+      const isFail = !sendResult.success;
       if (isFail) {
         failedCount++;
       } else {
+        sentCount++;
         deliveredCount++;
-        if (Math.random() > 0.15) readCount++;
-        if (Math.random() > 0.65) repliedCount++;
+        readCount++;
       }
 
       const logItem: CampaignMessageLog = {
@@ -1381,12 +1388,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         contactId: contact.id,
         contactName: contact.name,
         phone: contact.phone,
-        status: isFail ? 'failed' : Math.random() > 0.4 ? 'read' : 'delivered',
-        errorMessage: isFail ? 'Número fuera de cobertura o no registrado' : undefined,
+        status: isFail ? 'failed' : 'delivered',
+        errorMessage: isFail ? sendResult.error : undefined,
         sentAt: new Date().toISOString(),
         deliveredAt: !isFail ? new Date().toISOString() : undefined,
         readAt: !isFail ? new Date().toISOString() : undefined,
-        renderedText: `Mensaje personalizado para ${contact.name} (${contact.company || 'Cliente'})`,
+        renderedText: sendResult.renderedText,
       };
 
       setCampaigns((prev) =>

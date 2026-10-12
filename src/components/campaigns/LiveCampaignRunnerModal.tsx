@@ -27,6 +27,7 @@ export const LiveCampaignRunnerModal: React.FC<LiveCampaignRunnerModalProps> = (
     startBroadcastExecution, 
     pauseBroadcastExecution,
     activeRunningCampaignId,
+    metaConfig,
     t 
   } = useApp();
 
@@ -83,6 +84,15 @@ export const LiveCampaignRunnerModal: React.FC<LiveCampaignRunnerModalProps> = (
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {metaConfig.isSandboxMode && (
+          <div className="mx-6 mt-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center gap-2.5 text-xs text-amber-300">
+            <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+            <div>
+              <span className="font-bold">Modo Simulación (Sandbox) Activo:</span> Los envíos se muestran en pantalla como demostración y no se cobran ni llegan a números reales. Para enviar mensajes reales a celulares por Meta Cloud API, desactiva el Sandbox e ingresa tu Token en Configuración.
+            </div>
+          </div>
+        )}
 
         {/* Progress Section */}
         <div className="p-6 bg-slate-950/60 border-b border-slate-800 space-y-3">
@@ -171,14 +181,31 @@ export const LiveCampaignRunnerModal: React.FC<LiveCampaignRunnerModalProps> = (
                   key={log.id}
                   className="p-2.5 rounded-lg bg-slate-950/70 border border-slate-800/80 flex items-center justify-between gap-3 text-slate-300"
                 >
-                  <div className="flex items-center gap-2 truncate">
-                    <span className="font-semibold text-white truncate max-w-[130px]">
-                      {log.contactName}
-                    </span>
-                    <span className="text-[11px] text-slate-400">({log.phone})</span>
+                  <div className="flex flex-col truncate max-w-sm">
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="font-semibold text-white truncate max-w-[140px]">
+                        {log.contactName}
+                      </span>
+                      <span className="text-[11px] text-slate-400">({log.phone})</span>
+                    </div>
+                    {log.errorMessage && (
+                      <span className="text-[10px] text-red-400 truncate mt-0.5 font-sans">
+                        ⚠️ {log.errorMessage}
+                      </span>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
+                    <a
+                      href={`https://api.whatsapp.com/send?phone=${log.phone.replace(/[^0-9]/g, '')}&text=${encodeURIComponent(log.renderedText || '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/25 transition-colors flex items-center gap-1"
+                      title="Abrir chat en WhatsApp Web o App"
+                    >
+                      <span>💬 wa.me</span>
+                    </a>
+
                     {log.status === 'replied' && (
                       <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
                         RESPONDIDO

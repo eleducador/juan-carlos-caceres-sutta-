@@ -44,6 +44,7 @@ interface AppContextType {
     password?: string;
     companyName: string;
     phone: string;
+    role?: UserRole;
     planId: PlanDuration;
     durationMonths: 1 | 2 | 4;
     quotaLimit?: number;
@@ -56,6 +57,7 @@ interface AppContextType {
   extendGracePeriod: (userId: string) => void;
   extendUserDuration: (userId: string, monthsToAdd: 1 | 2 | 4) => void;
   updateUserQuota: (userId: string, newLimit: number) => void;
+  updateUserRole: (userId: string, newRole: UserRole) => void;
   updateProfile: (updates: Partial<UserTenant>) => Promise<boolean>;
   getDaysRemaining: (dueDate: string) => number;
 
@@ -922,6 +924,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     password?: string;
     companyName: string;
     phone: string;
+    role?: UserRole;
     planId: PlanDuration;
     durationMonths: 1 | 2 | 4;
     quotaLimit?: number;
@@ -933,6 +936,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const dueDate = new Date(Date.now() + durationDays * 86400000).toISOString().slice(0, 10);
 
     const targetPlan = plans.find((p) => p.id === data.planId) || plans[0];
+    const generatedUsername = data.username?.trim().toLowerCase() || data.email.split('@')[0].toLowerCase();
 
     const newUserId = typeof crypto !== 'undefined' && crypto.randomUUID
       ? crypto.randomUUID()
@@ -950,7 +954,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       password: data.password || 'user123',
       companyName: data.companyName,
       phone: data.phone,
-      role: 'business_owner',
+      role: data.role || 'business_owner',
       status: data.status,
       planId: data.planId,
       durationMonths: data.durationMonths,
@@ -985,6 +989,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setInvoices((prev) => [newInvoice, ...prev]);
   };
+
+  const updateUserRole = (userId: string, newRole: UserRole) => {
+    setUsersList((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
+    );
+    if (isSupabaseConfigured && supabase) {
+      dbService.updateProfile(userId, { role: newRole }).catch(console.error);
+    }
+  };
+
 
   const deleteUser = (userId: string) => {
     setUsersList((prev) => prev.filter((u) => u.id !== userId));
@@ -1520,6 +1534,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         extendGracePeriod,
         extendUserDuration,
         updateUserQuota,
+        updateUserRole,
         updateProfile,
         getDaysRemaining,
         yapePlinConfig,

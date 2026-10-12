@@ -31,6 +31,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('user123');
   const [phone, setPhone] = useState('+51 9');
+  const [role, setRole] = useState<'business_owner' | 'super_admin'>('business_owner');
   const [planId, setPlanId] = useState<PlanDuration>('1_month');
   const [status, setStatus] = useState<'active' | 'trial' | 'suspended_unpaid'>('active');
 
@@ -52,6 +53,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
       password: password.trim() || 'user123',
       companyName: companyName.trim(),
       phone: phone.trim(),
+      role,
       planId,
       durationMonths: selectedPlan.durationMonths,
       quotaLimit: selectedPlan.quotaMessages,
@@ -253,6 +255,48 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 }`}
               >
                 Bloqueado (Mora)
+              </button>
+            </div>
+          </div>
+
+          {/* User Role Selection */}
+          <div>
+            <label className="block text-slate-300 font-semibold mb-1">
+              Privilegios y Rol en el Sistema *
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setRole('business_owner')}
+                className={`p-2.5 rounded-xl border text-left transition-all ${
+                  role === 'business_owner'
+                    ? 'bg-blue-500/20 border-blue-500/60 text-white shadow-md'
+                    : 'bg-slate-950 border-slate-800 text-slate-400'
+                }`}
+              >
+                <span className="block font-bold text-xs text-blue-300">
+                  🏢 Dueño de Negocio (Cliente)
+                </span>
+                <span className="block text-[10px] text-slate-400 mt-0.5">
+                  Acceso a WhatsApp, campañas, plantillas y contactos.
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setRole('super_admin')}
+                className={`p-2.5 rounded-xl border text-left transition-all ${
+                  role === 'super_admin'
+                    ? 'bg-amber-500/20 border-amber-500/60 text-white shadow-md'
+                    : 'bg-slate-950 border-slate-800 text-slate-400'
+                }`}
+              >
+                <span className="block font-bold text-xs text-amber-300">
+                  👑 Super Administrador
+                </span>
+                <span className="block text-[10px] text-slate-400 mt-0.5">
+                  Acceso total a la pestaña Super Usuario y control global.
+                </span>
               </button>
             </div>
           </div>

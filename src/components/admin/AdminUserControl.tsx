@@ -31,6 +31,7 @@ export const AdminUserControl: React.FC = () => {
     extendUserDuration,
     getDaysRemaining,
     updateUserQuota,
+    updateUserRole,
     yapePlinReceipts,
     t 
   } = useApp();
@@ -216,7 +217,18 @@ export const AdminUserControl: React.FC = () => {
                     return (
                       <tr key={user.id} className="hover:bg-slate-850/50 transition-colors">
                         <td className="py-3 px-3 font-sans">
-                          <div className="font-bold text-white text-xs">{user.companyName}</div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-white text-xs">{user.companyName}</span>
+                            {user.role === 'super_admin' ? (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                👑 Super Admin
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                                Cliente
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[11px] text-slate-400 font-normal">
                             {user.name} · {user.phone}
                           </div>
@@ -315,74 +327,99 @@ export const AdminUserControl: React.FC = () => {
                           })()}
                         </td>
                         <td className="py-3 px-3 text-right font-sans">
-                          {user.role === 'super_admin' ? (
-                            <span className="text-[10px] text-slate-500">Super Admin (Inmune)</span>
-                          ) : (
-                            <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                              {/* Quick Time Extension Buttons: 1M, 2M, 4M */}
-                              <div className="flex items-center border border-slate-800 rounded-lg overflow-hidden bg-slate-950 text-[10px]">
-                                <button
-                                  onClick={() => extendUserDuration(user.id, 1)}
-                                  className="px-1.5 py-0.5 hover:bg-slate-800 text-slate-300 font-bold transition-colors"
-                                  title="Renovar por 1 Mes (+30 días)"
-                                >
-                                  +1M
-                                </button>
-                                <span className="text-slate-700">|</span>
-                                <button
-                                  onClick={() => extendUserDuration(user.id, 2)}
-                                  className="px-1.5 py-0.5 hover:bg-slate-800 text-emerald-400 font-bold transition-colors"
-                                  title="Renovar por 2 Meses (+60 días)"
-                                >
-                                  +2M
-                                </button>
-                                <span className="text-slate-700">|</span>
-                                <button
-                                  onClick={() => extendUserDuration(user.id, 4)}
-                                  className="px-1.5 py-0.5 hover:bg-slate-800 text-purple-400 font-bold transition-colors"
-                                  title="Renovar por 4 Meses (+120 días)"
-                                >
-                                  +4M
-                                </button>
-                              </div>
-
-                              {isBlocked ? (
-                                <button
-                                  onClick={() => unblockUserByAdmin(user.id)}
-                                  className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors"
-                                  title="Dar de alta / Desbloquear cuenta"
-                                >
-                                  Dar de Alta
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => blockUserByAdmin(user.id)}
-                                  className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30 transition-colors"
-                                  title="Bloquear cuenta por falta de pago"
-                                >
-                                  Bloquear
-                                </button>
-                              )}
-
+                          <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                            {/* Role management */}
+                            {user.email === 'jcsutta2@gmail.com' ? (
+                              <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-bold">
+                                Dueño Principal
+                              </span>
+                            ) : user.role === 'super_admin' ? (
                               <button
-                                onClick={() => extendGracePeriod(user.id)}
-                                className="p-1 rounded text-slate-400 hover:text-amber-400 transition-colors"
-                                title="Extender 7 días de gracia"
+                                onClick={() => updateUserRole(user.id, 'business_owner')}
+                                className="px-2 py-1 text-[10px] font-semibold rounded-lg bg-slate-800 text-slate-300 hover:text-white border border-slate-700 hover:bg-slate-700 transition-colors"
+                                title="Cambiar a cuenta de Cliente (Quitar acceso a pestaña Super Admin)"
                               >
-                                <Clock className="w-3.5 h-3.5" />
+                                Quitar Admin
                               </button>
-
+                            ) : (
                               <button
-                                onClick={() => {
-                                  setSelectedUserForQuota(user);
-                                  setNewQuotaValue(user.quotaLimit);
-                                }}
-                                className="p-1 rounded text-slate-400 hover:text-white transition-colors"
-                                title="Modificar límite de cuota"
+                                onClick={() => updateUserRole(user.id, 'super_admin')}
+                                className="px-2 py-1 text-[10px] font-bold rounded-lg bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40 transition-colors"
+                                title="Promover a Super Administrador (Tendrá acceso a la pestaña de Super Usuario)"
                               >
-                                <SlidersHorizontal className="w-3.5 h-3.5" />
+                                👑 Hacer Super Admin
                               </button>
+                            )}
 
+                            {user.role !== 'super_admin' && (
+                              <>
+                                {/* Quick Time Extension Buttons: 1M, 2M, 4M */}
+                                <div className="flex items-center border border-slate-800 rounded-lg overflow-hidden bg-slate-950 text-[10px]">
+                                  <button
+                                    onClick={() => extendUserDuration(user.id, 1)}
+                                    className="px-1.5 py-0.5 hover:bg-slate-800 text-slate-300 font-bold transition-colors"
+                                    title="Renovar por 1 Mes (+30 días)"
+                                  >
+                                    +1M
+                                  </button>
+                                  <span className="text-slate-700">|</span>
+                                  <button
+                                    onClick={() => extendUserDuration(user.id, 2)}
+                                    className="px-1.5 py-0.5 hover:bg-slate-800 text-emerald-400 font-bold transition-colors"
+                                    title="Renovar por 2 Meses (+60 días)"
+                                  >
+                                    +2M
+                                  </button>
+                                  <span className="text-slate-700">|</span>
+                                  <button
+                                    onClick={() => extendUserDuration(user.id, 4)}
+                                    className="px-1.5 py-0.5 hover:bg-slate-800 text-purple-400 font-bold transition-colors"
+                                    title="Renovar por 4 Meses (+120 días)"
+                                  >
+                                    +4M
+                                  </button>
+                                </div>
+
+                                {isBlocked ? (
+                                  <button
+                                    onClick={() => unblockUserByAdmin(user.id)}
+                                    className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors"
+                                    title="Dar de alta / Desbloquear cuenta"
+                                  >
+                                    Dar de Alta
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => blockUserByAdmin(user.id)}
+                                    className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+                                    title="Bloquear cuenta por falta de pago"
+                                  >
+                                    Bloquear
+                                  </button>
+                                )}
+
+                                <button
+                                  onClick={() => extendGracePeriod(user.id)}
+                                  className="p-1 rounded text-slate-400 hover:text-amber-400 transition-colors"
+                                  title="Extender 7 días de gracia"
+                                >
+                                  <Clock className="w-3.5 h-3.5" />
+                                </button>
+
+                                <button
+                                  onClick={() => {
+                                    setSelectedUserForQuota(user);
+                                    setNewQuotaValue(user.quotaLimit);
+                                  }}
+                                  className="p-1 rounded text-slate-400 hover:text-white transition-colors"
+                                  title="Modificar límite de cuota"
+                                >
+                                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
+
+                            {user.email !== 'jcsutta2@gmail.com' && (
                               <button
                                 onClick={() => deleteUser(user.id)}
                                 className="p-1 rounded text-slate-400 hover:text-red-400 transition-colors"
@@ -390,8 +427,8 @@ export const AdminUserControl: React.FC = () => {
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
